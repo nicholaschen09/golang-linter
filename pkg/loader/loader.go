@@ -53,7 +53,7 @@ func Load(patterns []string, mode LoadMode, buildFlags []string) (*Result, error
 		return nil, fmt.Errorf("loading packages: %w", err)
 	}
 
-	var errs []error
+	errs := make([]error, 0)
 	for _, pkg := range pkgs {
 		for _, e := range pkg.Errors {
 			errs = append(errs, e)

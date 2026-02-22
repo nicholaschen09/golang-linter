@@ -9,7 +9,7 @@ import (
 
 type UncheckedError struct{}
 
-func (UncheckedError) Name() string        { return "unchecked-error" }
+func (UncheckedError) Name() string            { return "unchecked-error" }
 func (UncheckedError) Category() rule.Category { return rule.CategoryBugs }
 func (UncheckedError) Severity() rule.Severity { return rule.SeverityError }
 func (UncheckedError) Description() string {
@@ -21,13 +21,13 @@ func (UncheckedError) NodeTypes() []ast.Node {
 }
 
 func (UncheckedError) Check(ctx *rule.Context, node ast.Node) []rule.Diagnostic {
-	stmt, ok := node.(*ast.ExprStmt)
-	if !ok || ctx.TypeInfo == nil {
+	stmt, isExpr := node.(*ast.ExprStmt)
+	if !isExpr || ctx.TypeInfo == nil {
 		return nil
 	}
 
-	call, ok := stmt.X.(*ast.CallExpr)
-	if !ok {
+	call, isCall := stmt.X.(*ast.CallExpr)
+	if !isCall {
 		return nil
 	}
 
@@ -65,15 +65,16 @@ func hasErrorResult(t types.Type) bool {
 }
 
 func isErrorType(t types.Type) bool {
-	iface, ok := t.Underlying().(*types.Interface)
-	if !ok {
+	iface, ifaceOk := t.Underlying().(*types.Interface)
+	if !ifaceOk {
 		return false
 	}
 	for i := 0; i < iface.NumMethods(); i++ {
 		if iface.Method(i).Name() == "Error" {
-			sig, ok := iface.Method(i).Type().(*types.Signature)
-			if ok && sig.Params().Len() == 0 && sig.Results().Len() == 1 {
-				if basic, ok := sig.Results().At(0).Type().(*types.Basic); ok && basic.Kind() == types.String {
+			sig, sigOk := iface.Method(i).Type().(*types.Signature)
+			if sigOk && sig.Params().Len() == 0 && sig.Results().Len() == 1 {
+				basic, basicOk := sig.Results().At(0).Type().(*types.Basic)
+				if basicOk && basic.Kind() == types.String {
 					return true
 				}
 			}

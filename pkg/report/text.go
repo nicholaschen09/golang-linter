@@ -23,21 +23,21 @@ func (r *TextReporter) Report(w io.Writer, diagnostics []rule.Diagnostic) error 
 	for _, d := range diagnostics {
 		if r.Color {
 			sev := colorSeverity(d.Severity)
-			fmt.Fprintf(w, "%s%s%s: %s%s%s [%s%s%s] %s\n",
+			_, _ = fmt.Fprintf(w, "%s%s%s: %s%s%s [%s%s%s] %s\n",
 				colorGray, d.Pos, colorReset,
 				sev, d.Severity, colorReset,
 				colorCyan, d.Rule, colorReset,
 				d.Message,
 			)
 		} else {
-			fmt.Fprintf(w, "%s: %s [%s] %s\n",
+			_, _ = fmt.Fprintf(w, "%s: %s [%s] %s\n",
 				d.Pos, d.Severity, d.Rule, d.Message,
 			)
 		}
 	}
 
 	if len(diagnostics) > 0 {
-		fmt.Fprintf(w, "\n%d issue(s) found.\n", len(diagnostics))
+		_, _ = fmt.Fprintf(w, "\n%d issue(s) found.\n", len(diagnostics))
 	}
 
 	return nil

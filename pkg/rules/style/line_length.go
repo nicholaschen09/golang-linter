@@ -42,12 +42,15 @@ func (LineLength) CheckFile(ctx *rule.Context) []rule.Diagnostic {
 		lineNum++
 		line := scanner.Text()
 		if len(line) > maxLen {
+			msg := ctx.FilePath + ":" + strconv.Itoa(lineNum) +
+				" line is " + strconv.Itoa(len(line)) +
+				" characters (max " + strconv.Itoa(maxLen) + ")"
 			diags = append(diags, rule.Diagnostic{
 				Rule:     "line-length",
 				Category: rule.CategoryStyle,
 				Severity: rule.SeverityWarning,
 				Pos:      ctx.FileSet.Position(ctx.File.Pos()),
-				Message:  ctx.FilePath + ":" + strconv.Itoa(lineNum) + " line is " + strconv.Itoa(len(line)) + " characters (max " + strconv.Itoa(maxLen) + ")",
+				Message:  msg,
 			})
 		}
 	}

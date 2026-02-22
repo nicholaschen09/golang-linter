@@ -60,7 +60,8 @@ func (c *Cache) Lookup(filePath, fileHash, ruleSet string) ([]rule.Diagnostic, b
 	defer f.Close()
 
 	var cr cachedResult
-	if err := gob.NewDecoder(f).Decode(&cr); err != nil {
+	decErr := gob.NewDecoder(f).Decode(&cr)
+	if decErr != nil {
 		return nil, false
 	}
 
@@ -104,7 +105,7 @@ func (c *Cache) Clear() error {
 	}
 	for _, e := range entries {
 		if filepath.Ext(e.Name()) == ".gob" {
-			os.Remove(filepath.Join(c.dir, e.Name()))
+			_ = os.Remove(filepath.Join(c.dir, e.Name()))
 		}
 	}
 	return nil

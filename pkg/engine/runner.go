@@ -39,10 +39,13 @@ type fileUnit struct {
 
 // Run analyzes all packages in parallel and returns collected diagnostics.
 func (r *Runner) Run(ctx context.Context, pkgs []*packages.Package) ([]rule.Diagnostic, error) {
-	var units []fileUnit
+	totalFiles := 0
 	for _, pkg := range pkgs {
-		for i, f := range pkg.CompiledGoFiles {
-			_ = f
+		totalFiles += len(pkg.CompiledGoFiles)
+	}
+	units := make([]fileUnit, 0, totalFiles)
+	for _, pkg := range pkgs {
+		for i := range pkg.CompiledGoFiles {
 			units = append(units, fileUnit{
 				pkg:      pkg,
 				fileIdx:  i,
@@ -59,8 +62,8 @@ func (r *Runner) Run(ctx context.Context, pkgs []*packages.Package) ([]rule.Diag
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(r.concurrency)
 
-	for _, u := range units {
-		u := u
+	for idx := range units {
+		u := units[idx]
 		g.Go(func() error {
 			if gctx.Err() != nil {
 				return gctx.Err()

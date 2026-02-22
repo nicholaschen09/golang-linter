@@ -30,13 +30,14 @@ func (HardcodedSecret) NodeTypes() []ast.Node {
 }
 
 func (HardcodedSecret) Check(ctx *rule.Context, node ast.Node) []rule.Diagnostic {
-	switch n := node.(type) {
-	case *ast.AssignStmt:
-		return checkAssign(ctx, n)
-	case *ast.ValueSpec:
-		return checkValueSpec(ctx, n)
-	case *ast.KeyValueExpr:
-		return checkKeyValue(ctx, n)
+	if a, aOk := node.(*ast.AssignStmt); aOk {
+		return checkAssign(ctx, a)
+	}
+	if v, vOk := node.(*ast.ValueSpec); vOk {
+		return checkValueSpec(ctx, v)
+	}
+	if kv, kvOk := node.(*ast.KeyValueExpr); kvOk {
+		return checkKeyValue(ctx, kv)
 	}
 	return nil
 }
@@ -44,8 +45,8 @@ func (HardcodedSecret) Check(ctx *rule.Context, node ast.Node) []rule.Diagnostic
 func checkAssign(ctx *rule.Context, assign *ast.AssignStmt) []rule.Diagnostic {
 	var diags []rule.Diagnostic
 	for i, lhs := range assign.Lhs {
-		ident, ok := lhs.(*ast.Ident)
-		if !ok {
+		ident, identOk := lhs.(*ast.Ident)
+		if !identOk {
 			continue
 		}
 		if i >= len(assign.Rhs) {
@@ -69,12 +70,11 @@ func checkValueSpec(ctx *rule.Context, vs *ast.ValueSpec) []rule.Diagnostic {
 }
 
 func checkKeyValue(ctx *rule.Context, kv *ast.KeyValueExpr) []rule.Diagnostic {
-	key, ok := kv.Key.(*ast.BasicLit)
-	if !ok {
-		if ident, ok := kv.Key.(*ast.Ident); ok {
-			if isSecretName(ident.Name) && isStringLiteral(kv.Value) {
-				return []rule.Diagnostic{makeDiag(ctx, ident, ident.Name)}
-			}
+	key, keyIsLit := kv.Key.(*ast.BasicLit)
+	if !keyIsLit {
+		ident, identOk := kv.Key.(*ast.Ident)
+		if identOk && isSecretName(ident.Name) && isStringLiteral(kv.Value) {
+			return []rule.Diagnostic{makeDiag(ctx, ident, ident.Name)}
 		}
 		return nil
 	}
@@ -114,11 +114,11 @@ func isSecretName(name string) bool {
 }
 
 func isStringLiteral(expr ast.Expr) bool {
-	lit, ok := expr.(*ast.BasicLit)
-	if !ok {
+	lit, litOk := expr.(*ast.BasicLit)
+	if !litOk {
 		return false
 	}
-	val := strings.Trim(lit.Value, `"` + "`")
+	val := strings.Trim(lit.Value, `"`+"`")
 	return len(val) > 0 && val != "" && val != "''"
 }
 

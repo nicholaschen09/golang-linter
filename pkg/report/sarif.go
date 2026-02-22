@@ -67,7 +67,7 @@ type sarifRegion struct {
 func (r *SARIFReporter) Report(w io.Writer, diagnostics []rule.Diagnostic) error {
 	ruleMap := make(map[string]bool)
 	var rules []sarifRule
-	var results []sarifResult
+	results := make([]sarifResult, 0, len(diagnostics))
 
 	for _, d := range diagnostics {
 		if !ruleMap[d.Rule] {

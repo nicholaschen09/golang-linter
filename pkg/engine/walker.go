@@ -43,7 +43,12 @@ func NewWalker(rules []rule.Rule) *Walker {
 // Walk performs a single traversal of the file AST and returns all
 // diagnostics produced by registered rules.
 func (w *Walker) Walk(ctx *rule.Context) []rule.Diagnostic {
-	buf := w.diagPool.Get().(*[]rule.Diagnostic)
+	poolVal, _ := w.diagPool.Get().(*[]rule.Diagnostic)
+	if poolVal == nil {
+		s := make([]rule.Diagnostic, 0, 8)
+		poolVal = &s
+	}
+	buf := poolVal
 	*buf = (*buf)[:0]
 	defer w.diagPool.Put(buf)
 

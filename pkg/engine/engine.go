@@ -21,7 +21,6 @@ type Engine struct {
 }
 
 func New(cfg *config.Config, registry *rule.Registry) (*Engine, error) {
-	var activeRules []rule.Rule
 	needsTypes := false
 
 	allRules := registry.All()
@@ -29,6 +28,7 @@ func New(cfg *config.Config, registry *rule.Registry) (*Engine, error) {
 		return allRules[i].Name() < allRules[j].Name()
 	})
 
+	activeRules := make([]rule.Rule, 0, len(allRules))
 	for _, r := range allRules {
 		rc, exists := cfg.Rules[r.Name()]
 		if exists && !rc.Enabled {
@@ -99,7 +99,7 @@ func (e *Engine) ClearCache() error {
 }
 
 func computeRuleSetKey(rules []rule.Rule) string {
-	var names []string
+	names := make([]string, 0, len(rules))
 	for _, r := range rules {
 		names = append(names, r.Name())
 	}

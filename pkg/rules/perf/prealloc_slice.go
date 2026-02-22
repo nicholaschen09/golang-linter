@@ -15,25 +15,85 @@ func (PreallocSlice) Severity() rule.Severity { return rule.SeverityWarning }
 func (PreallocSlice) Description() string {
 	return "Suggests preallocating slices that are grown inside loops with append"
 }
-func (PreallocSlice) NeedsTypeInfo() bool { return true }
-func (PreallocSlice) NodeTypes() []ast.Node {
-	return []ast.Node{
-		(*ast.RangeStmt)(nil),
-		(*ast.ForStmt)(nil),
-	}
+func (PreallocSlice) NeedsTypeInfo() bool  { return true }
+func (PreallocSlice) NodeTypes() []ast.Node { return nil }
+
+func (PreallocSlice) Check(_ *rule.Context, _ ast.Node) []rule.Diagnostic {
+	return nil
 }
 
-func (PreallocSlice) Check(ctx *rule.Context, node ast.Node) []rule.Diagnostic {
+// CheckFile walks the file to find append-in-loop patterns while tracking
+// which slice variables were already preallocated with make().
+func (PreallocSlice) CheckFile(ctx *rule.Context) []rule.Diagnostic {
 	if ctx.TypeInfo == nil {
 		return nil
 	}
 
+	var diags []rule.Diagnostic
+
+	ast.Inspect(ctx.File, func(n ast.Node) bool {
+		fn, fnOk := n.(*ast.FuncDecl)
+		if !fnOk || fn.Body == nil {
+			return true
+		}
+		diags = append(diags, checkFuncBody(ctx, fn.Body)...)
+		return false
+	})
+
+	return diags
+}
+
+func checkFuncBody(ctx *rule.Context, body *ast.BlockStmt) []rule.Diagnostic {
+	diags := make([]rule.Diagnostic, 0)
+	preallocated := make(map[string]bool)
+
+	for _, stmt := range body.List {
+		trackMakeAllocations(stmt, preallocated)
+		diags = append(diags, checkStmtForAppendInLoop(ctx, stmt, preallocated)...)
+	}
+
+	return diags
+}
+
+func trackMakeAllocations(stmt ast.Stmt, preallocated map[string]bool) {
+	assign, assignOk := stmt.(*ast.AssignStmt)
+	if !assignOk || len(assign.Lhs) != 1 || len(assign.Rhs) != 1 {
+		return
+	}
+
+	ident, identOk := assign.Lhs[0].(*ast.Ident)
+	if !identOk {
+		return
+	}
+
+	call, callOk := assign.Rhs[0].(*ast.CallExpr)
+	if !callOk {
+		return
+	}
+
+	fnIdent, fnOk := call.Fun.(*ast.Ident)
+	if !fnOk || fnIdent.Name != "make" {
+		return
+	}
+
+	// make([]T, len) or make([]T, len, cap) — both count as preallocated
+	if len(call.Args) >= 2 {
+		preallocated[ident.Name] = true
+	}
+}
+
+func checkStmtForAppendInLoop(
+	ctx *rule.Context,
+	stmt ast.Stmt,
+	preallocated map[string]bool,
+) []rule.Diagnostic {
 	var body *ast.BlockStmt
-	switch n := node.(type) {
+
+	switch s := stmt.(type) {
 	case *ast.RangeStmt:
-		body = n.Body
+		body = s.Body
 	case *ast.ForStmt:
-		body = n.Body
+		body = s.Body
 	default:
 		return nil
 	}
@@ -43,47 +103,44 @@ func (PreallocSlice) Check(ctx *rule.Context, node ast.Node) []rule.Diagnostic {
 	}
 
 	var diags []rule.Diagnostic
-	for _, stmt := range body.List {
-		assign, ok := stmt.(*ast.AssignStmt)
-		if !ok || len(assign.Rhs) != 1 {
+	for _, loopStmt := range body.List {
+		assign, assignOk := loopStmt.(*ast.AssignStmt)
+		if !assignOk || len(assign.Rhs) != 1 {
 			continue
 		}
 
-		call, ok := assign.Rhs[0].(*ast.CallExpr)
-		if !ok {
+		call, callOk := assign.Rhs[0].(*ast.CallExpr)
+		if !callOk {
 			continue
 		}
 
-		fn, ok := call.Fun.(*ast.Ident)
-		if !ok || fn.Name != "append" {
+		fnIdent, fnOk := call.Fun.(*ast.Ident)
+		if !fnOk || fnIdent.Name != "append" || len(call.Args) < 1 {
 			continue
 		}
 
-		if len(call.Args) < 1 {
-			continue
-		}
-
-		// Check the first arg is a slice being appended to
 		t := ctx.TypeInfo.TypeOf(call.Args[0])
 		if t == nil {
 			continue
 		}
-		if _, ok := t.Underlying().(*types.Slice); !ok {
+		if _, sliceOk := t.Underlying().(*types.Slice); !sliceOk {
 			continue
 		}
 
-		// Verify the LHS is the same variable as the first arg
 		if len(assign.Lhs) == 1 {
 			lhsIdent, lOk := assign.Lhs[0].(*ast.Ident)
 			argIdent, rOk := call.Args[0].(*ast.Ident)
 			if lOk && rOk && lhsIdent.Name == argIdent.Name {
+				if preallocated[lhsIdent.Name] {
+					continue
+				}
 				diags = append(diags, rule.Diagnostic{
 					Rule:     "prealloc-slice",
 					Category: rule.CategoryPerf,
 					Severity: rule.SeverityWarning,
 					Pos:      ctx.FileSet.Position(assign.Pos()),
 					End:      ctx.FileSet.Position(assign.End()),
-					Message:  "consider preallocating '" + lhsIdent.Name + "' with make([]T, 0, expectedLen)",
+					Message:  "consider preallocating '" + lhsIdent.Name + "'",
 				})
 			}
 		}

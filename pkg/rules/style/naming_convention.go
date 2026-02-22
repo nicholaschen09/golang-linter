@@ -28,17 +28,18 @@ func (NamingConvention) NodeTypes() []ast.Node {
 func (NamingConvention) Check(ctx *rule.Context, node ast.Node) []rule.Diagnostic {
 	var diags []rule.Diagnostic
 
-	switch n := node.(type) {
-	case *ast.FuncDecl:
-		if d := checkName(ctx, n.Name); d != nil {
+	if fd, fdOk := node.(*ast.FuncDecl); fdOk {
+		if d := checkName(ctx, fd.Name); d != nil {
 			diags = append(diags, *d)
 		}
-	case *ast.TypeSpec:
-		if d := checkName(ctx, n.Name); d != nil {
+	}
+	if ts, tsOk := node.(*ast.TypeSpec); tsOk {
+		if d := checkName(ctx, ts.Name); d != nil {
 			diags = append(diags, *d)
 		}
-	case *ast.ValueSpec:
-		for _, name := range n.Names {
+	}
+	if vs, vsOk := node.(*ast.ValueSpec); vsOk {
+		for _, name := range vs.Names {
 			if d := checkName(ctx, name); d != nil {
 				diags = append(diags, *d)
 			}
@@ -59,7 +60,6 @@ func checkName(ctx *rule.Context, ident *ast.Ident) *rule.Diagnostic {
 	}
 
 	if strings.Contains(name, "_") {
-		// Allow ALL_CAPS constants
 		if name == strings.ToUpper(name) {
 			return nil
 		}
@@ -74,22 +74,25 @@ func checkName(ctx *rule.Context, ident *ast.Ident) *rule.Diagnostic {
 		return &d
 	}
 
-	// Check for common acronym casing issues (e.g., "Url" instead of "URL")
 	for _, acr := range commonAcronyms {
 		lower := strings.ToLower(acr)
 		mixed := strings.ToUpper(acr[:1]) + strings.ToLower(acr[1:])
 		if strings.Contains(name, mixed) && !strings.Contains(name, acr) {
 			idx := strings.Index(name, mixed)
 			atEnd := idx+len(mixed) == len(name)
-			nextIsUpper := !atEnd && unicode.IsUpper(rune(name[idx+len(mixed)]))
+			nextIsUpper := !atEnd &&
+				unicode.IsUpper(rune(name[idx+len(mixed)]))
 			if atEnd || nextIsUpper {
+				msg := "'" + mixed + "' in '" + name +
+					"' should be '" + acr +
+					"' (Go convention: " + lower + " -> " + acr + ")"
 				d := rule.Diagnostic{
 					Rule:     "naming-convention",
 					Category: rule.CategoryStyle,
 					Severity: rule.SeverityInfo,
 					Pos:      ctx.FileSet.Position(ident.Pos()),
 					End:      ctx.FileSet.Position(ident.End()),
-					Message:  "'" + mixed + "' in '" + name + "' should be '" + acr + "' (Go convention: " + lower + " -> " + acr + ")",
+					Message:  msg,
 				}
 				return &d
 			}
@@ -100,10 +103,12 @@ func checkName(ctx *rule.Context, ident *ast.Ident) *rule.Diagnostic {
 }
 
 var commonAcronyms = []string{
-	"API", "ASCII", "CPU", "CSS", "DNS", "EOF", "GUID", "HTML", "HTTP",
-	"HTTPS", "ID", "IP", "JSON", "LHS", "QPS", "RAM", "RHS", "RPC",
-	"SLA", "SMTP", "SQL", "SSH", "TCP", "TLS", "TTL", "UDP", "UI",
-	"UID", "URI", "URL", "UTF8", "UUID", "VM", "XML", "XMPP", "XSRF", "XSS",
+	"API", "ASCII", "CPU", "CSS", "DNS", "EOF", "GUID",
+	"HTML", "HTTP", "HTTPS", "ID", "IP", "JSON", "LHS",
+	"QPS", "RAM", "RHS", "RPC", "SLA", "SMTP", "SQL",
+	"SSH", "TCP", "TLS", "TTL", "UDP", "UI", "UID",
+	"URI", "URL", "UTF8", "UUID", "VM", "XML", "XMPP",
+	"XSRF", "XSS",
 }
 
 func init() {

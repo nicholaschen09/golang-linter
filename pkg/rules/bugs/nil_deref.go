@@ -32,39 +32,39 @@ func (NilDeref) Check(ctx *rule.Context, node ast.Node) []rule.Diagnostic {
 
 	var diags []rule.Diagnostic
 
-	switch rhs := assign.Rhs[0].(type) {
-	case *ast.TypeAssertExpr:
-		// Single-value type assertion: v = x.(T) panics on nil
+	rhs := assign.Rhs[0]
+	if ta, taOk := rhs.(*ast.TypeAssertExpr); taOk {
+		// Type switch assertions have Type == nil; those are always safe
+		if ta.Type == nil {
+			return nil
+		}
 		if len(assign.Lhs) == 1 {
-			t := ctx.TypeInfo.TypeOf(rhs.X)
+			t := ctx.TypeInfo.TypeOf(ta.X)
 			if t != nil && isNillable(t) {
 				diags = append(diags, rule.Diagnostic{
 					Rule:     "nil-deref",
 					Category: rule.CategoryBugs,
 					Severity: rule.SeverityError,
-					Pos:      ctx.FileSet.Position(rhs.Pos()),
-					End:      ctx.FileSet.Position(rhs.End()),
+					Pos:      ctx.FileSet.Position(ta.Pos()),
+					End:      ctx.FileSet.Position(ta.End()),
 					Message:  "type assertion without ok check; will panic if value is nil or wrong type",
 				})
 			}
 		}
-	case *ast.IndexExpr:
-		// Single-value map lookup: v = m[k] — if result is pointer type,
-		// using it without ok check risks nil deref.
+	} else if idx, idxOk := rhs.(*ast.IndexExpr); idxOk {
 		if len(assign.Lhs) == 1 {
-			t := ctx.TypeInfo.TypeOf(rhs.X)
+			t := ctx.TypeInfo.TypeOf(idx.X)
 			if t != nil {
-				if mt, ok := t.Underlying().(*types.Map); ok {
-					if isNillable(mt.Elem()) {
-						diags = append(diags, rule.Diagnostic{
-							Rule:     "nil-deref",
-							Category: rule.CategoryBugs,
-							Severity: rule.SeverityWarning,
-							Pos:      ctx.FileSet.Position(rhs.Pos()),
-							End:      ctx.FileSet.Position(rhs.End()),
-							Message:  "map lookup of pointer type without ok check; zero value is nil",
-						})
-					}
+				mt, mapOk := t.Underlying().(*types.Map)
+				if mapOk && isNillable(mt.Elem()) {
+					diags = append(diags, rule.Diagnostic{
+						Rule:     "nil-deref",
+						Category: rule.CategoryBugs,
+						Severity: rule.SeverityWarning,
+						Pos:      ctx.FileSet.Position(idx.Pos()),
+						End:      ctx.FileSet.Position(idx.End()),
+						Message:  "map lookup of pointer type without ok check; zero value is nil",
+					})
 				}
 			}
 		}

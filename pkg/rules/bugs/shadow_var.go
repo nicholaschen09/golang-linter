@@ -21,8 +21,8 @@ func (ShadowVar) NodeTypes() []ast.Node {
 }
 
 func (ShadowVar) Check(ctx *rule.Context, node ast.Node) []rule.Diagnostic {
-	assign, ok := node.(*ast.AssignStmt)
-	if !ok || assign.Tok != token.DEFINE {
+	assign, isAssign := node.(*ast.AssignStmt)
+	if !isAssign || assign.Tok != token.DEFINE {
 		return nil
 	}
 	if ctx.TypeInfo == nil {
@@ -31,8 +31,8 @@ func (ShadowVar) Check(ctx *rule.Context, node ast.Node) []rule.Diagnostic {
 
 	var diags []rule.Diagnostic
 	for _, lhs := range assign.Lhs {
-		ident, ok := lhs.(*ast.Ident)
-		if !ok || ident.Name == "_" {
+		ident, identOk := lhs.(*ast.Ident)
+		if !identOk || ident.Name == "_" {
 			continue
 		}
 

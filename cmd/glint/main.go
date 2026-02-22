@@ -93,12 +93,13 @@ func runCmd() *cobra.Command {
 			}
 
 			reporter := report.New(cfg.Output.Format, cfg.Output.Color)
-			if err := reporter.Report(os.Stdout, diags); err != nil {
-				return fmt.Errorf("reporting: %w", err)
+			reportErr := reporter.Report(os.Stdout, diags)
+			if reportErr != nil {
+				return fmt.Errorf("reporting: %w", reportErr)
 			}
 
 			elapsed := time.Since(start)
-			fmt.Fprintf(os.Stderr, "glint: analyzed %d package(s) with %d rule(s) in %s\n",
+			_, _ = fmt.Fprintf(os.Stderr, "glint: analyzed %d package(s) with %d rule(s) in %s\n",
 				len(args), len(eng.ActiveRules()), elapsed.Round(time.Millisecond))
 
 			if len(diags) > 0 {
@@ -131,13 +132,13 @@ func listRulesCmd() *cobra.Command {
 			})
 
 			tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-			fmt.Fprintf(tw, "RULE\tCATEGORY\tSEVERITY\tTYPES\tDESCRIPTION\n")
+			_, _ = fmt.Fprintf(tw, "RULE\tCATEGORY\tSEVERITY\tTYPES\tDESCRIPTION\n")
 			for _, r := range rules {
 				needsTypes := "no"
 				if r.NeedsTypeInfo() {
 					needsTypes = "yes"
 				}
-				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
+				_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
 					r.Name(), r.Category(), r.Severity(), needsTypes, r.Description())
 			}
 			return tw.Flush()
@@ -157,7 +158,7 @@ func initConfigCmd() *cobra.Command {
 			if err := config.WriteDefault(path); err != nil {
 				return err
 			}
-			fmt.Printf("Created %s with default configuration.\n", path)
+			_, _ = fmt.Printf("Created %s with default configuration.\n", path)
 			return nil
 		},
 	}

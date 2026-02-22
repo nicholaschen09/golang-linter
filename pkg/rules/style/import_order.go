@@ -17,10 +17,10 @@ func (ImportOrder) Description() string {
 }
 func (ImportOrder) NeedsTypeInfo() bool { return false }
 func (ImportOrder) NodeTypes() []ast.Node {
-	return nil // uses FileRule interface
+	return nil
 }
 
-func (r ImportOrder) Check(_ *rule.Context, _ ast.Node) []rule.Diagnostic {
+func (ImportOrder) Check(_ *rule.Context, _ ast.Node) []rule.Diagnostic {
 	return nil
 }
 
@@ -28,15 +28,15 @@ func (ImportOrder) CheckFile(ctx *rule.Context) []rule.Diagnostic {
 	var diags []rule.Diagnostic
 
 	for _, decl := range ctx.File.Decls {
-		gd, ok := decl.(*ast.GenDecl)
-		if !ok {
+		gd, gdOk := decl.(*ast.GenDecl)
+		if !gdOk {
 			continue
 		}
 
-		var imports []importInfo
+		imports := make([]importInfo, 0, len(gd.Specs))
 		for _, spec := range gd.Specs {
-			is, ok := spec.(*ast.ImportSpec)
-			if !ok {
+			is, isOk := spec.(*ast.ImportSpec)
+			if !isOk {
 				continue
 			}
 			path := strings.Trim(is.Path.Value, `"`)
@@ -51,7 +51,6 @@ func (ImportOrder) CheckFile(ctx *rule.Context) []rule.Diagnostic {
 			continue
 		}
 
-		// Verify ordering: stdlib (0) < external (1) < internal (2)
 		lastGroup := -1
 		for _, imp := range imports {
 			if imp.group < lastGroup {
@@ -61,7 +60,8 @@ func (ImportOrder) CheckFile(ctx *rule.Context) []rule.Diagnostic {
 					Severity: rule.SeverityInfo,
 					Pos:      ctx.FileSet.Position(imp.spec.Pos()),
 					End:      ctx.FileSet.Position(imp.spec.End()),
-					Message:  "import '" + imp.path + "' is out of order; expected grouping: stdlib, external, internal",
+					Message: "import '" + imp.path +
+						"' is out of order; expected grouping: stdlib, external, internal",
 				})
 			}
 			if imp.group > lastGroup {
