@@ -50,9 +50,11 @@ func runCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "run [packages...]",
-		Short: "Run the linter on Go packages",
-		Args:  cobra.MinimumNArgs(1),
+		Short: "Run the linter on Go packages (defaults to ./...)",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				args = []string{"./..."}
+			}
 			start := time.Now()
 
 			var cfg *config.Config
